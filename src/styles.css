@@ -1,0 +1,58 @@
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+
+:root {
+  --bg: #0b0b0a;
+  --ink: #ece9e2;
+  --red: #a3000b;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --display: 'Archivo Variable', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; }
+
+html { background: var(--bg); color: var(--ink); color-scheme: dark; }
+body { font-family: var(--mono); }
+
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.track { width: 1px; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
+
+/* Interface permanente : seulement la marque et l'enregistrement, comme sur le site actuel. */
+.hud {
+  position: fixed; inset: 0 0 auto; z-index: 10;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 24px clamp(16px, 3vw, 40px);
+  pointer-events: none;
+  /* Voile sombre en haut de l'écran : l'interface reste lisible même sur un parapet éclairé. */
+  background: linear-gradient(rgb(11 11 10 / 0.55), transparent);
+}
+.hud__logo { height: 18px; width: auto; filter: invert(0.93); }
+.hud__rec {
+  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums;
+}
+.hud__session { opacity: 0.6; }
+.hud__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: rec 1.6s steps(1) infinite; }
+@keyframes rec { 50% { opacity: 0; } }
+
+.loader {
+  position: fixed; inset: 0; z-index: 20; background: var(--bg);
+  display: grid; place-items: center;
+  font-size: 11px; letter-spacing: 0.1em;
+  transition: opacity 0.8s ease, visibility 0.8s;
+}
+.loader.is-done { opacity: 0; visibility: hidden; }
+
+.grain {
+  position: fixed; inset: -50%; z-index: 5; pointer-events: none;
+  mix-blend-mode: overlay; opacity: 0.08;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud__dot { animation: none; }
+}
