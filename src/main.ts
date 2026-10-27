@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { InfiniteScroll, SECTION_COUNT } from './scroll';
 import { Spring } from './scene/spring';
 import { ZONE_LEN, floorY, trenchX } from './scene/zones';
-import { buildTrench } from './scene/trench';
+import { buildWorld } from './scene/world';
 import { manager, hdri } from './scene/assets';
 import { Flare } from './fx/flare';
 import { Grain } from './fx/grain';
@@ -43,7 +43,7 @@ const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.05, 2
 const flare = new Flare(scene, shadows);
 
 manager.onProgress = (_, loaded, total) => (countEl.textContent = String(Math.round((loaded / total) * 100)).padStart(3, '0'));
-const [env] = await Promise.all([hdri('mud_road_puresky'), buildTrench(scene)]);
+const [env, animateWorld] = await Promise.all([hdri('mud_road_puresky'), buildWorld(scene)]);
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromEquirectangular(env).texture;
 scene.environmentIntensity = 0.08;
@@ -84,7 +84,11 @@ addEventListener('pointermove', (e) => {
 
 /** Axe lissé de la tranchée : moyenne sur quelques mètres, la caméra coupe les virages comme un marcheur. */
 const pathX = (z: number) => (trenchX(z - 1.5) + trenchX(z) + trenchX(z + 1.5)) / 3;
+const START = 9;
 const look = new THREE.Vector3();
+const fog = scene.fog as THREE.FogExp2;
+const bone = new THREE.Color('#ece9e2');
+const smooth = THREE.MathUtils.smoothstep;
 const timer = new THREE.Timer();
 timer.connect(document);
 
@@ -96,7 +100,8 @@ renderer.setAnimationLoop((timeMs) => {
   scroll.update(timeMs);
 
   const loop = ZONE_LEN * SECTION_COUNT;
-  const z = -(((scroll.position * ZONE_LEN) % loop) + loop) % loop;
+  // Décalage de départ : le premier écran est déjà sorti du blanc qui raccorde la boucle.
+  const z = -((((scroll.position * ZONE_LEN + START) % loop) + loop) % loop);
   // Pas de marche : léger balancement proportionnel à la distance parcourue.
   const bob = device.reducedMotion ? 0 : Math.sin(z * 2.4) * 0.025;
   camera.position.set(pathX(z), floorY(z) + 1.62 + bob, z);
@@ -105,6 +110,13 @@ renderer.setAnimationLoop((timeMs) => {
   camera.rotateY(yaw.update(dt));
   camera.rotateX(pitch.update(dt));
 
+  // Raccord de la boucle : le mur d'écrans blanchit tout, et l'entrée ressort de ce blanc.
+  const white = Math.max(1 - smooth(z + loop, 0, 16), 1 - smooth(-z, 0, 7));
+  fog.color.lerpColors(night, bone, white);
+  fog.density = THREE.MathUtils.lerp(0.055, 0.9, white);
+  scene.background = fog.color;
+
+  animateWorld(dt, t, camera.position);
   flare.update(dt, t, camera.position);
   grain.update(dt, scroll.velocity);
   hud.update(t);

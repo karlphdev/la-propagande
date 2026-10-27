@@ -1,15 +1,14 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { pbr, model } from './assets';
-import { TRENCH, ZONE_LEN, groundHeight, surfaceHeight, trenchDepth, trenchSlope, trenchX, rng } from './zones';
-import { SECTION_COUNT } from '../scroll';
+import { dummy, instanced } from './common';
+import { TRENCH, ZONE_LEN, groundHeight, trenchSlope, trenchX, rng } from './zones';
 
 const Z0 = -TRENCH.zone * ZONE_LEN;
 /** Partie creusée de la zone, rampes exclues : là où vivent étais, caillebotis et sacs. */
 const DUG_START = Z0 - TRENCH.ramp * 0.6;
 const DUG_END = Z0 - ZONE_LEN + TRENCH.ramp * 0.6;
 
-const dummy = new THREE.Object3D();
 const qTilt = new THREE.Quaternion();
 const X = new THREE.Vector3(1, 0, 0);
 
@@ -20,69 +19,6 @@ function alongTrench(x: number, y: number, z: number, tilt = 0, yaw = 0) {
   dummy.quaternion.multiply(qTilt.setFromAxisAngle(X, tilt));
   dummy.updateMatrix();
   return dummy.matrix;
-}
-
-/** Variation de teinte par instance : terre, humidité, usure ; rien n'est neuf ici. */
-const tint = new THREE.Color();
-function instanced(geo: THREE.BufferGeometry, mat: THREE.Material, matrices: THREE.Matrix4[], vary = 0.35) {
-  const mesh = new THREE.InstancedMesh(geo, mat, matrices.length);
-  const r = rng(matrices.length);
-  matrices.forEach((m, i) => {
-    mesh.setMatrixAt(i, m);
-    const v = 1 - r() * vary;
-    mesh.setColorAt(i, tint.setRGB(v, v * (0.94 + r() * 0.06), v * (0.88 + r() * 0.1)));
-  });
-  mesh.castShadow = mesh.receiveShadow = true;
-  mesh.computeBoundingSphere();
-  return mesh;
-}
-
-/**
- * Sol de tout le parcours : une bande qui suit le tracé de la tranchée,
- * avec des colonnes serrées sur les parois et lâches au loin.
- */
-function ground(mat: THREE.Material) {
-  const near = [0, 0.45, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.45, 1.7, 2.0, 2.4, 2.9, 3.6, 4.5];
-  const cols = [...near];
-  for (let d = 5.2; d <= 26; d += 0.7) cols.push(d);
-  const across = [...cols.slice(1).reverse().map((d) => -d), ...cols];
-  // Pas fin là où la tranchée est creusée, plus lâche ailleurs.
-  const zs: number[] = [];
-  for (let z = 0; z > -ZONE_LEN * SECTION_COUNT; z -= trenchDepth(z) > 0 || trenchDepth(z - 0.6) > 0 ? 0.3 : 0.6) zs.push(z);
-  zs.push(-ZONE_LEN * SECTION_COUNT);
-  const rows = zs.length;
-  const pos = new Float32Array(rows * across.length * 3);
-  const uv = new Float32Array(rows * across.length * 2);
-  let k = 0;
-  for (const z of zs) {
-    const xc = trenchX(z);
-    const D = trenchDepth(z);
-    for (const d of across) {
-      const x = xc + d;
-      const h = groundHeight(x, z);
-      pos.set([x, h, z], k * 3);
-      // Sur les parois, la hauteur parcourue s'ajoute à la distance : la texture ne s'étire pas.
-      const drop = THREE.MathUtils.clamp(surfaceHeight(x, z) - h, 0, D);
-      uv.set([x + Math.sign(d) * (D - drop), z], k * 2);
-      k++;
-    }
-  }
-  const index: number[] = [];
-  const n = across.length;
-  for (let r = 0; r < rows - 1; r++) {
-    for (let c = 0; c < n - 1; c++) {
-      const a = r * n + c, b = a + 1, cc = a + n, dd = cc + 1;
-      index.push(a, b, cc, b, dd, cc);
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  geo.setIndex(index);
-  geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = mesh.castShadow = true;
-  return mesh;
 }
 
 /** Bande de boue mouillée au fond de la tranchée : elle reflète la fusée éclairante. */
@@ -116,12 +52,11 @@ function floorMud(mat: THREE.Material) {
 
 export async function buildTrench(scene: THREE.Scene) {
   const rand = rng(1917);
-  const soil = pbr('brown_mud_rocks_01', 2.6, { color: '#5d4f43', normalScale: new THREE.Vector2(0.55, 0.55) });
   const mud = pbr('brown_mud_02', 2.2, { roughness: 0.72, color: '#3f3932', normalScale: new THREE.Vector2(0.5, 0.5) });
   const wood = pbr('weathered_planks', 1.6, { color: '#5f574d' });
   const hessian = pbr('hessian_230', 0.6, { color: '#5a4e41' });
 
-  scene.add(ground(soil), floorMud(mud));
+  scene.add(floorMud(mud));
 
   const { floorHalf, topHalf, depth } = TRENCH;
   const wallTilt = Math.atan((topHalf - floorHalf) / depth);
