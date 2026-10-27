@@ -7,6 +7,9 @@ import { buildWorld } from './scene/world';
 import { manager, hdri } from './scene/assets';
 import { Flare } from './fx/flare';
 import { Grain } from './fx/grain';
+import { Post } from './fx/post';
+import { Particles } from './fx/particles';
+import { Shock } from './fx/shock';
 import { Hud } from './ui/hud';
 import { device, hasWebGL2 } from './device';
 
@@ -56,6 +59,14 @@ if (device.debug) {
   document.body.appendChild(stats.dom);
 }
 
+const post = new Post(renderer, scene, camera, device.lite);
+const particles = new Particles(scene, device.lite);
+// Sous « réduire les animations », pas de flash, de secousse ni de glitch.
+const shock = new Shock(scene, !device.reducedMotion, (p) => particles.burst(p));
+/** Taille des particules en pixels pour 1 m à 1 m de distance. */
+const pointScale = () => renderer.getDrawingBufferSize(new THREE.Vector2()).y / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+let scale = pointScale();
+
 await renderer.compileAsync(scene, camera);
 countEl.textContent = '100';
 loaderEl.classList.add('is-done');
@@ -71,6 +82,8 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight, false);
+  post.setSize(innerWidth, innerHeight);
+  scale = pointScale();
 });
 
 // Regard libre à la souris, avec inertie : on tourne la tête dans la tranchée.
@@ -85,6 +98,8 @@ addEventListener('pointermove', (e) => {
 /** Axe lissé de la tranchée : moyenne sur quelques mètres, la caméra coupe les virages comme un marcheur. */
 const pathX = (z: number) => (trenchX(z - 1.5) + trenchX(z) + trenchX(z + 1.5)) / 3;
 const START = 9;
+// ?shock : fige la passe de choc pour la régler sur une capture.
+const forceShock = new URLSearchParams(location.search).has('shock');
 const look = new THREE.Vector3();
 const fog = scene.fog as THREE.FogExp2;
 const bone = new THREE.Color('#ece9e2');
@@ -109,6 +124,8 @@ renderer.setAnimationLoop((timeMs) => {
   camera.lookAt(look);
   camera.rotateY(yaw.update(dt));
   camera.rotateX(pitch.update(dt));
+  shock.update(dt, t, z);
+  camera.position.add(shock.shakeOffset);
 
   // Raccord de la boucle : le mur d'écrans blanchit tout, et l'entrée ressort de ce blanc.
   const white = Math.max(1 - smooth(z + loop, 0, 16), 1 - smooth(-z, 0, 7));
@@ -118,8 +135,9 @@ renderer.setAnimationLoop((timeMs) => {
 
   animateWorld(dt, t, camera.position);
   flare.update(dt, t, camera.position);
+  particles.update(dt, t, camera.position, fog, scale);
   grain.update(dt, scroll.velocity);
   hud.update(t);
-  renderer.render(scene, camera);
+  post.render(t, forceShock ? 0.8 : shock.shock, shock.flash);
   stats?.end();
 });

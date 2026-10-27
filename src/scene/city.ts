@@ -6,6 +6,12 @@ import { STREET_HALF, Z, ZONE_LEN, groundHeight, rng, zoneStart } from './zones'
 
 const Z0 = zoneStart(Z.city);
 const MODULE = 3;
+
+/** Foyers d'incendie : dans les gravats au pied des façades, ou derrière une fenêtre d'étage. */
+export const FIRES = [[0.18, 7.8, 0.4], [0.41, -8.2, 3.6], [0.57, -6.4, 0.3], [0.83, 8.4, 6.8]].map(([t, x, y]) => {
+  const z = Z0 - t * ZONE_LEN;
+  return new THREE.Vector3(x, groundHeight(x, z) + y, z);
+});
 const FLOOR = 3;
 
 /** Variantes du kit Poly Haven : fenêtre de l'étage 1, des étages courants, et du dernier étage. */
@@ -125,11 +131,10 @@ export async function buildCity(scene: THREE.Scene) {
   scene.add(rubble(rand), cables(rand));
   await props(scene, rand);
 
-  // Foyers d'incendie dans les gravats et derrière quelques fenêtres : la seule chaleur de la rue.
-  const fires = [[0.18, 7.8, 0.4], [0.41, -8.2, 3.6], [0.57, -6.4, 0.3], [0.83, 8.4, 6.8]].map(([t, x, y]) => {
-    const z = Z0 - t * ZONE_LEN;
+  // La seule chaleur de la rue.
+  const fires = FIRES.map((p) => {
     const light = new THREE.PointLight('#ff7a2e', 0, 18, 1.6);
-    light.position.set(x, groundHeight(x, z) + y + 0.6, z);
+    light.position.copy(p).y += 0.6;
     scene.add(light);
     return light;
   });

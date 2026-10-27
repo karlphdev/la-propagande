@@ -9,7 +9,9 @@ import { buildScreens } from './screens';
 
 /** Construit les cinq zones et renvoie ce qui s'anime d'une image à l'autre. */
 export async function buildWorld(scene: THREE.Scene) {
-  const soil = pbr('brown_mud_rocks_01', 2.6, { color: '#5d4f43', normalScale: new THREE.Vector2(0.55, 0.55) });
+  // Terre mate : sans carte de rugosité, les cailloux ne scintillent plus sous la fusée (et sous le bloom).
+  const soil = pbr('brown_mud_rocks_01', 2.6, { color: '#5d4f43', normalScale: new THREE.Vector2(0.35, 0.35), roughness: 1 });
+  soil.roughnessMap = null;
   const grounds = [
     soil,
     soil,
